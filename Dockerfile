@@ -1,34 +1,37 @@
-FROM ghcr.io/linuxserver/baseimage-alpine-nginx:3.14
+# syntax=docker/dockerfile:1
+
+FROM ghcr.io/linuxserver/baseimage-alpine-nginx:3.24
 
 # set version label
 ARG BUILD_DATE
 ARG VERSION
 ARG CERTBOT_VERSION
 LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DATE}"
-LABEL maintainer="aptalca"
+LABEL maintainer="nemchik"
 
 # environment settings
-ENV DHLEVEL=2048 ONLY_SUBDOMAINS=false AWS_CONFIG_FILE=/config/dns-conf/route53.ini
-ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
+ENV DHLEVEL=2048 \
+  ONLY_SUBDOMAINS=false \
+  AWS_CONFIG_FILE=/config/dns-conf/route53.ini \
+  S6_BEHAVIOUR_IF_STAGE2_FAILS=2
 
 RUN \
   echo "**** install build packages ****" && \
   apk add --no-cache --virtual=build-dependencies \
+    build-base \
     cargo \
-    g++ \
-    gcc \
     libffi-dev \
     libxml2-dev \
     libxslt-dev \
     openssl-dev \
     python3-dev && \
   echo "**** install runtime packages ****" && \
-  apk add --no-cache --upgrade \
-    curl \
+  apk add --no-cache \
     fail2ban \
     gnupg \
+    inotify-tools \
+    iptables-legacy \
     memcached \
-    nginx \
     nginx-mod-http-brotli \
     nginx-mod-http-dav-ext \
     nginx-mod-http-echo \
@@ -36,7 +39,6 @@ RUN \
     nginx-mod-http-geoip2 \
     nginx-mod-http-headers-more \
     nginx-mod-http-image-filter \
-    nginx-mod-http-nchan \
     nginx-mod-http-perl \
     nginx-mod-http-redis2 \
     nginx-mod-http-set-misc \
@@ -47,114 +49,140 @@ RUN \
     nginx-mod-stream \
     nginx-mod-stream-geoip2 \
     nginx-vim \
-    php7-bcmath \
-    php7-bz2 \
-    php7-ctype \
-    php7-curl \
-    php7-dom \
-    php7-exif \
-    php7-ftp \
-    php7-gd \
-    php7-gmp \
-    php7-iconv \
-    php7-imap \
-    php7-intl \
-    php7-ldap \
-    php7-mcrypt \
-    php7-memcached \
-    php7-mysqli \
-    php7-mysqlnd \
-    php7-opcache \
-    php7-pdo_mysql \
-    php7-pdo_odbc \
-    php7-pdo_pgsql \
-    php7-pdo_sqlite \
-    php7-pear \
-    php7-pecl-apcu \
-    php7-pecl-mailparse \
-    php7-pecl-redis \
-    php7-pgsql \
-    php7-phar \
-    php7-posix \
-    php7-soap \
-    php7-sockets \
-    php7-sodium \
-    php7-sqlite3 \
-    php7-tokenizer \
-    php7-xml \
-    php7-xmlreader \
-    php7-xmlrpc \
-    php7-xsl \
-    php7-zip \
-    py3-cryptography \
-    py3-future \
-    py3-pip \
+    php85-bcmath \
+    php85-bz2 \
+    php85-dom \
+    php85-exif \
+    php85-ftp \
+    php85-gd \
+    php85-gmp \
+    php85-intl \
+    php85-ldap \
+    php85-mysqli \
+    php85-mysqlnd \
+    php85-pdo_mysql \
+    php85-pdo_odbc \
+    php85-pdo_pgsql \
+    php85-pdo_sqlite \
+    php85-pear \
+    php85-pecl-apcu \
+    php85-pecl-memcached \
+    php85-pecl-redis \
+    php85-pgsql \
+    php85-posix \
+    php85-soap \
+    php85-sockets \
+    php85-sodium \
+    php85-sqlite3 \
+    php85-tokenizer \
+    php85-xmlreader \
+    php85-xsl \
     whois && \
   echo "**** install certbot plugins ****" && \
   if [ -z ${CERTBOT_VERSION+x} ]; then \
-    CERTBOT="certbot"; \
-  else \
-    CERTBOT="certbot==${CERTBOT_VERSION}"; \
+    CERTBOT_VERSION=$(curl -sL  https://pypi.python.org/pypi/certbot/json |jq -r '. | .info.version'); \
   fi && \
-  pip3 install -U \
-    pip && \
-  pip3 install -U --find-links https://wheel-index.linuxserver.io/alpine/ \
-    ${CERTBOT} \
+  python3 -m venv /lsiopy && \
+  pip install -U --no-cache-dir \
+    pip \
+    wheel && \
+  pip install -U --no-cache-dir --find-links https://wheel-index.linuxserver.io/alpine-3.24/ \
+    certbot==${CERTBOT_VERSION} \
+    certbot-dns-acmedns \
     certbot-dns-aliyun \
+    certbot-dns-azure \
+    certbot-dns-bunny \
     certbot-dns-cloudflare \
-    certbot-dns-cloudxns \
     certbot-dns-cpanel \
+    certbot-dns-desec \
     certbot-dns-digitalocean \
     certbot-dns-directadmin \
     certbot-dns-dnsimple \
     certbot-dns-dnsmadeeasy \
+    certbot-dns-dnspod \
+    certbot-dns-do \
     certbot-dns-domeneshop \
+    certbot-dns-dreamhost \
+    certbot-dns-duckdns \
+    certbot-dns-dynudns \
+    certbot-dns-freedns \
+    certbot-dns-gehirn \
+    certbot-dns-glesys \
+    certbot-dns-godaddy \
     certbot-dns-google \
     certbot-dns-he \
     certbot-dns-hetzner \
+    certbot-dns-hetzner-cloud \
+    certbot-dns-infomaniak \
     certbot-dns-inwx \
     certbot-dns-ionos \
     certbot-dns-linode \
+    certbot-dns-loopia \
     certbot-dns-luadns \
+    certbot-dns-mijn-host \
+    certbot-dns-namecheap \
     certbot-dns-netcup \
     certbot-dns-njalla \
     certbot-dns-nsone \
     certbot-dns-ovh \
+    certbot-dns-porkbun \
     certbot-dns-rfc2136 \
     certbot-dns-route53 \
+    certbot-dns-sakuracloud \
+    certbot-dns-standalone \
     certbot-dns-transip \
     certbot-dns-vultr \
     certbot-plugin-gandi \
     cryptography \
+    future \
     requests && \
+  echo "**** enable OCSP stapling from base ****" && \
+  sed -i \
+    's|#ssl_stapling on;|ssl_stapling on;|' \
+    /defaults/nginx/ssl.conf.sample && \
+  sed -i \
+    's|#ssl_stapling_verify on;|ssl_stapling_verify on;|' \
+    /defaults/nginx/ssl.conf.sample && \
+  sed -i \
+    's|#ssl_trusted_certificate /config/keys/cert.crt;|ssl_trusted_certificate /config/keys/cert.crt;|' \
+    /defaults/nginx/ssl.conf.sample && \
+  echo "**** remove stream.conf ****" && \
+  rm -f /etc/nginx/conf.d/stream.conf && \
+  echo "**** correct ip6tables legacy issue ****" && \
+  rm \
+    /usr/sbin/ip6tables && \
+  ln -s \
+    /usr/sbin/ip6tables-nft /usr/sbin/ip6tables && \
   echo "**** remove unnecessary fail2ban filters ****" && \
   rm \
     /etc/fail2ban/jail.d/alpine-ssh.conf && \
-  echo "**** copy fail2ban default action and filter to /default ****" && \
+  echo "**** copy fail2ban default action and filter to /defaults ****" && \
   mkdir -p /defaults/fail2ban && \
   mv /etc/fail2ban/action.d /defaults/fail2ban/ && \
   mv /etc/fail2ban/filter.d /defaults/fail2ban/ && \
-  echo "**** copy proxy confs to /default ****" && \
-  mkdir -p /defaults/proxy-confs && \
+  echo "**** define allowipv6 to silence warning ****" && \
+  sed -i 's/#allowipv6 = auto/allowipv6 = auto/g' /etc/fail2ban/fail2ban.conf && \
+  echo "**** copy proxy confs to /defaults ****" && \
+  mkdir -p \
+    /defaults/nginx/proxy-confs && \
   curl -o \
-    /tmp/proxy.tar.gz -L \
+    /tmp/proxy-confs.tar.gz -L \
     "https://github.com/linuxserver/reverse-proxy-confs/tarball/master" && \
   tar xf \
-    /tmp/proxy.tar.gz -C \
-    /defaults/proxy-confs --strip-components=1 --exclude=linux*/.gitattributes --exclude=linux*/.github --exclude=linux*/.gitignore --exclude=linux*/LICENSE && \
-  echo "**** configure nginx ****" && \
-  rm -f /etc/nginx/http.d/default.conf && \
+    /tmp/proxy-confs.tar.gz -C \
+    /defaults/nginx/proxy-confs --strip-components=1 --exclude=linux*/.editorconfig --exclude=linux*/.gitattributes --exclude=linux*/.github --exclude=linux*/.gitignore --exclude=linux*/LICENSE && \
+  printf "Linuxserver.io version: ${VERSION}\nBuild-date: ${BUILD_DATE}" > /build_version && \
   echo "**** cleanup ****" && \
   apk del --purge \
     build-dependencies && \
-  for cleanfiles in *.pyc *.pyo; \
-    do \
-    find /usr/lib/python3.*  -iname "${cleanfiles}" -exec rm -f '{}' + \
-    ; done && \
   rm -rf \
     /tmp/* \
-    /root/.cache \
-    /root/.cargo
+    $HOME/.cache \
+    $HOME/.cargo
 
-# add local files
+# copy local files
 COPY root/ /
+
+# ports and volumes
+EXPOSE 80 443
+VOLUME /config
